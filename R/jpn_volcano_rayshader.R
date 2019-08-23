@@ -208,7 +208,7 @@ if (file.exists(here::here("data/volcano_list39.rds")) == FALSE) {
     readr::read_rds(here::here("data/volcano_elevation.rds"))
 }
 
-if (file.exists() == FALSE) {
+if (file.exists(here::here("data/volcano_rayshader.rds")) == FALSE) {
   volcano_rayshader_list <- 
     seq(nrow(df_volcano_list)) %>%
     purrr::map(
