@@ -10,6 +10,7 @@ library(geoviz)
 library(conflicted)
 conflict_prefer("filter", "dplyr")
 conflict_prefer("select", "dplyr")
+conflict_prefer("extract", "raster")
 
 buffer_contains_10km_meshes <- function(sf_buffer, prefcode) {
   jpmesh::administration_mesh(code = jpndistrict::code_reform(prefcode),
@@ -99,7 +100,8 @@ make_rayshader_data <- function(m, zscale = 1, min_area = -100) {
                                          alpha_max = 0.9))
   list(data = p_data,
        elmat = elmat,
-       scene = scene)
+       scene = scene,
+       m = m)
 }
 
 # 火山 ALOS ----------------------------------------------------------------------
@@ -206,25 +208,57 @@ if (file.exists(here::here("data/volcano_list39.rds")) == FALSE) {
     readr::read_rds(here::here("data/volcano_elevation.rds"))
 }
 
+if (file.exists() == FALSE) {
+  volcano_rayshader_list <- 
+    seq(nrow(df_volcano_list)) %>%
+    purrr::map(
+      function(.x) {
+        m <- alos_circular(df_volcano_list %>% slice(.x))
+        make_rayshader_data(m,
+                            zscale = raster_zscale(m) / 2,
+                            min_area = 0)
+      }) %>% 
+    purrr::set_names(df_volcano_list$name)
+  volcano_rayshader_list %>% 
+    readr::write_rds(here::here("data/volcano_rayshader.rds"), compress = "xz")
+} else {
+  volcano_rayshader_list <-
+    readr::read_rds(here::here("data/volcano_rayshader.rds"))
+}
+
 # rayshader ---------------------------------------------------------------
 if (length(fs::dir_ls(here::here("figures"), regexp = "rayshader_mt.+.png")) != 39) {
   seq(nrow(df_volcano_list)) %>%
     purrr::walk(
       function(.x) {
-        d <- make_rayshader_data(alos_circular(df_volcano_list %>% slice(.x)),
-                                 zscale = 1,
-                                 min_area = 0)
+        d <- volcano_rayshader_list[[.x]]
         d$scene %>%
           plot_3d(d$elmat,
-                  zscale = raster_zscale(m) / 2,
+                  zscale = 10,
                   fov = 0,
                   theta = 0,
-                  zoom = 0.75,
+                  zoom = 0.56,# 0.7
                   phi = 45,
                   solid = FALSE,
                   shadow = TRUE,
-                  soliddepth = -raster_zscale(m),
-                  windowsize = c(1000, 800))
+                  soliddepth = -10,
+                  windowsize = c(800, 620))
+        rgl::rgl.texts(x = 430,
+                  y = 600,
+                  z = 700,
+                  text = "DEM: ALOS World 3D - 30m (\u00a9JAXA)",
+                  adj = -0.3,
+                  pos = NULL,
+                  offset = 1.0,
+                  color = "black")
+        rgl::rgl.texts(x = 430,
+                  y = 660,
+                  z = 700,
+                  text = "MapTile: Stamen Design (CC BY 3.0 )",
+                  adj = -0.3,
+                  pos = NULL,
+                  offset = 1.0,
+                  color = "black")
         render_snapshot(glue::glue("figures/rayshader_mt{sprintf('%02d', .x)}_{df_volcano_list %>% slice(.x) %>% pull(name)}.png"), clear = TRUE)
-      })  
+      })
 }
